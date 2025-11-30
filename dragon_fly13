@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Little Dragon Flyer 🐉🔥 - Level 3: Storm Flight</title>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: linear-gradient(to bottom, #0a0a24, #1a1a40);
+    font-family: "Comic Sans MS", cursive;
+    color: #fff;
+  }
+  canvas { display: block; }
+
+  #overlay, #scoreBoard, #winOverlay {
+    position: absolute;
+    z-index: 10;
+    font-family: "Comic Sans MS", cursive;
+  }
+  #overlay {
+    top: 10px;
+    left: 10px;
+    font-size: 20px;
+    background: rgba(0,0,0,0.5);
+    padding: 6px 12px;
+    border-radius: 8px;
+    color: #ccc;
+  }
+  #scoreBoard {
+    top: 10px;
+    right: 10px;
+    font-size: 24px;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.4);
+    padding: 6px 14px;
+    border-radius: 8px;
+  }
+  #winOverlay {
+    display: none;
+    top: 40%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 60px;
+    background: rgba(255,255,255,0.1);
+    color: #00ffff;
+    padding: 40px 60px;
+    border-radius: 20px;
+  }
+</style>
+</head>
+<body>
+<div id="overlay">⚡ Fly & Breathe Fire to Survive the Storm!</div>
+<div id="scoreBoard">Score: 0</div>
+<div id="winOverlay"></div>
+<canvas id="gameCanvas"></canvas>
+
+<!-- 🎵 Background storm music -->
+<audio id="bgMusic" src="Music/Storm.mpg" loop preload="auto"></audio>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+function resizeCanvas(){
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
+
+// 🐉 Dragon setup
+const dragon = {
+  x: canvas.width * 0.2,
+  y: canvas.height / 2,
+  radius: 40,
+  velocity: 0,
+  gravity: 0.3,
+  flapStrength: -6
+};
+
+// 🌩️ Lightning
+let lightnings=[];
+function spawnLightning(){
+  const offset = dragon.radius * 2 + 120;
+  const x = dragon.x + offset;
+  lightnings.push({
+    x, y:-200, segments:[],
+    speed:10,
+    warning:40,
+    active:true,
+    warnFlash:true
+  });
+  flashScreen(0.05);
+}
+spawnLightning();
+
+// 💨 Screen flash
+function flashScreen(alpha=0.2){
+  ctx.fillStyle=`rgba(255,255,255,${alpha})`;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+}
+
+// 🫧 Bubbles
+let bubbles=[];
+function spawnBubble(){
+  const y = 100 + Math.random()*(canvas.height-200);
+  const roll = Math.random();
+  let color, points;
+  if(roll < 0.5){ color="rgba(135,206,235,0.9)"; points=10; }
+  else if(roll < 0.7){ color="rgba(102,255,102,0.9)"; points=20; }
+  else if(roll < 0.85){ color="rgba(255,105,180,0.9)"; points=25; }
+  else if(roll < 0.95){ color="rgba(255,215,0,0.9)"; points=50; }
+  else { color="rgba(186,85,211,0.9)"; points=100; }
+  const radius = 20 + Math.random()*25;
+  bubbles.push({x:canvas.width+100,y,radius,color,points,active:true});
+}
+setInterval(spawnBubble, 900);
+setInterval(spawnBubble, 1300);
+
+// 🔥 Fire particles
+let particles=[];
+function createFire(){
+  const sx = dragon.x + dragon.radius*1.4;
+  const sy = dragon.y - 6;
+  const colors=["#ff3300","#ff9900","#ffff66","#ff6600"];
+  for(let i=0;i<35;i++){
+    particles.push({
+      x:sx,
+      y:sy,
+      radius:6+Math.random()*10,
+      color:colors[Math.floor(Math.random()*colors.length)],
+      alpha:1,
+      velocityX:6+Math.random()*4,
+      velocityY:(Math.random()-0.5)*6
+    });
+  }
+}
+function drawParticles(){
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    ctx.globalAlpha=p.alpha;
+    ctx.fillStyle=p.color;
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,p.radius,0,Math.PI*2);
+    ctx.fill();
+    p.x+=p.velocityX;
+    p.y+=p.velocityY;
+    p.alpha-=0.035;
+    p.radius*=0.96;
+    if(p.alpha<=0)particles.splice(i,1);
+  }
+  ctx.globalAlpha=1;
+}
+
+// ⚙️ State
+let score=0;
+let gameOver=false;
+const WIN_SCORE=1000;
+const bgMusic=document.getElementById("bgMusic");
+
+// ☁️ Background
+let clouds=[];
+for(let i=0;i<6;i++){
+  clouds.push({x:Math.random()*canvas.width,y:Math.random()*canvas.height*0.4,size:100+Math.random()*100});
+}
+function drawClouds(){
+  ctx.fillStyle="rgba(255,255,255,0.3)";
+  clouds.forEach(c=>{
+    ctx.beginPath();
+    ctx.ellipse(c.x,c.y,c.size,c.size*0.6,0,0,Math.PI*2);
+    ctx.fill();
+    c.x-=0.6;
+    if(c.x<-c.size){c.x=canvas.width+Math.random()*canvas.width*0.5;}
+  });
+}
+let hillOffset=0;
+function drawHills(){
+  ctx.fillStyle="#0a2f1d";
+  const baseY=canvas.height-50,amp=60,wave=250;
+  ctx.beginPath();
+  ctx.moveTo(0,baseY-Math.sin(0)*amp);
+  for(let x=0;x<=canvas.width;x++){
+    const y=baseY-Math.sin((x+hillOffset)/wave)*amp;
+    ctx.lineTo(x,y);
+  }
+  ctx.lineTo(canvas.width,canvas.height);
+  ctx.lineTo(0,canvas.height);
+  ctx.closePath();
+  ctx.fill();
+  hillOffset+=2;
+}
+
+// 🐉 Dragon
+function drawDragon(){
+  const grad=ctx.createLinearGradient(dragon.x-40,dragon.y-40,dragon.x+40,dragon.y+40);
+  grad.addColorStop(0,"#e74c3c");
+  grad.addColorStop(1,"#f39c12");
+  ctx.fillStyle=grad;
+  ctx.beginPath();
+  ctx.ellipse(dragon.x,dragon.y,dragon.radius,dragon.radius*0.7,0,0,Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle="#f39c12";
+  ctx.lineWidth=10;
+  ctx.beginPath();
+  const tWiggle=Math.sin(Date.now()/150)*10;
+  ctx.moveTo(dragon.x-dragon.radius*1.5,dragon.y+tWiggle);
+  ctx.lineTo(dragon.x-dragon.radius*3,dragon.y+tWiggle*0.5);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(dragon.x+dragon.radius*0.9,dragon.y-8,25,0,Math.PI*2);
+  ctx.fillStyle=grad;ctx.fill();
+  ctx.save();
+  ctx.translate(dragon.x,dragon.y);
+  const wingAngle=Math.sin(Date.now()/180)*0.4;
+  ctx.rotate(wingAngle);
+  ctx.fillStyle="#f1c40f";
+  ctx.beginPath();
+  ctx.moveTo(0,0);
+  ctx.quadraticCurveTo(-80,-50,-120,0);
+  ctx.quadraticCurveTo(-80,50,0,0);
+  ctx.fill();
+  ctx.restore();
+  ctx.fillStyle="#fff";
+  ctx.beginPath();
+  ctx.arc(dragon.x+dragon.radius,dragon.y-12,8,0,Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle="#000";
+  ctx.beginPath();
+  ctx.arc(dragon.x+dragon.radius,dragon.y-12,3,0,Math.PI*2);
+  ctx.fill();
+}
+
+// ⚡ Lightning (golden)
+function drawLightnings(){
+  lightnings.forEach(l=>{
+    if(l.warnFlash && l.warning>0){
+      const beamGrad=ctx.createLinearGradient(l.x-15,0,l.x+15,canvas.height);
+      beamGrad.addColorStop(0,"rgba(255,200,0,0)");
+      beamGrad.addColorStop(0.5,"rgba(255,180,0,0.35)");
+      beamGrad.addColorStop(1,"rgba(255,200,0,0)");
+      ctx.fillStyle=beamGrad;
+      ctx.fillRect(l.x-20,0,40,canvas.height);
+      l.warning--;
+      if(l.warning<=0){l.warnFlash=false;l.warning=0;}
+      return;
+    }
+    if(l.segments.length===0){
+      let pts=6+Math.floor(Math.random()*4);
+      let sx=l.x+Math.random()*10-5, sy=0;
+      l.segments.push({x:sx,y:sy});
+      for(let i=1;i<pts;i++){
+        sx+=Math.random()*60-30;
+        sy+=40+Math.random()*10;
+        l.segments.push({x:sx,y:sy});
+      }
+    }
+    l.segments.forEach(pt=>pt.y+=l.speed);
+    ctx.lineWidth=6;
+    ctx.strokeStyle="rgba(255,200,0,0.25)";
+    ctx.beginPath();
+    ctx.moveTo(l.segments[0].x,l.segments[0].y);
+    for(let i=1;i<l.segments.length;i++) ctx.lineTo(l.segments[i].x,l.segments[i].y);
+    ctx.stroke();
+    ctx.lineWidth=2;
+    ctx.strokeStyle="rgba(255,220,0,0.9)";
+    ctx.beginPath();
+    ctx.moveTo(l.segments[0].x,l.segments[0].y);
+    for(let i=1;i<l.segments.length;i++) ctx.lineTo(l.segments[i].x,l.segments[i].y);
+    ctx.stroke();
+    const tip=l.segments[l.segments.length-1];
+    const grad=ctx.createRadialGradient(tip.x,tip.y,0,tip.x,tip.y,20);
+    grad.addColorStop(0,"rgba(255,210,0,0.85)");
+    grad.addColorStop(1,"rgba(255,210,0,0)");
+    ctx.fillStyle=grad;
+    ctx.beginPath();
+    ctx.arc(tip.x,tip.y,20,0,Math.PI*2);
+    ctx.fill();
+  });
+  lightnings=lightnings.filter(l=>{
+    const lastY=l.segments.length?l.segments[l.segments.length-1].y:0;
+    return lastY<canvas.height+50;
+  });
+}
+
+// 💥 Explosion
+function createExplosion(x,y,color){
+  for(let i=0;i<25;i++){
+    particles.push({
+      x,y,
+      radius:4+Math.random()*4,
+      color,
+      alpha:1,
+      velocityX:(Math.random()-0.5)*6,
+      velocityY:(Math.random()-0.5)*6
+    });
+  }
+}
+
+// 🧩 Collisions
+function checkCollisions(){
+  bubbles.forEach(b=>{
+    if(!b.active)return;
+    const dx=dragon.x-b.x, dy=dragon.y-b.y;
+    const dist=Math.sqrt(dx*dx+dy*dy);
+    if(dist<dragon.radius+b.radius){
+      b.active=false;
+      score+=b.points;
+      document.getElementById("scoreBoard").textContent=`Score: ${score}`;
+      createExplosion(b.x,b.y,b.color);
+    }
+  });
+  if(score>=WIN_SCORE && !gameOver){ levelCompleteSequence(); }
+}
+
+// 🔄 Physics
+function update(){
+  if(gameOver)return;
+  dragon.velocity+=dragon.gravity;
+  dragon.y+=dragon.velocity;
+  if(dragon.y>canvas.height-120){dragon.y=canvas.height-120;dragon.velocity=0;}
+  if(dragon.y<dragon.radius){dragon.y=dragon.radius;dragon.velocity=0;}
+}
+
+// 🎮 Loop
+function gameLoop(){
+  if(gameOver)return;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawClouds();
+  drawHills();
+  if(Math.random()<0.004) flashScreen(0.15);
+  if(Math.random()<0.005) spawnLightning();
+  drawLightnings();
+  bubbles.forEach(b=>{
+    if(!b.active)return;
+    const grad=ctx.createRadialGradient(b.x,b.y,8,b.x,b.y,b.radius);
+    grad.addColorStop(0,"rgba(255,255,255,0.9)");
+    grad.addColorStop(1,b.color);
+    ctx.fillStyle=grad;
+    ctx.beginPath();
+    ctx.arc(b.x,b.y,b.radius,0,Math.PI*2);
+    ctx.fill();
+    // 🖤 black label
+    ctx.fillStyle="#000";
+    ctx.font="bold 18px Comic Sans MS";
+    ctx.textAlign="center";
+    ctx.fillText("+"+b.points,b.x,b.y+6);
+    b.x-=1.4;
+    if(b.x<-b.radius){
+      b.x=canvas.width+Math.random()*canvas.width*0.5;
+      b.y=100+Math.random()*(canvas.height-200);
+      b.active=true;
+    }
+  });
+  drawDragon();
+  drawParticles();
+  checkCollisions();
+  update();
+  requestAnimationFrame(gameLoop);
+}
+gameLoop();
+
+// 🕹 Controls + Music trigger
+let musicStarted = false;
+function flap(){ 
+  if(gameOver)return; 
+  dragon.velocity=dragon.flapStrength; 
+  createFire(); 
+  // 🎵 start music on first flap / spacebar
+  if(!musicStarted){
+    musicStarted = true;
+    bgMusic.volume=0.6;
+    bgMusic.play().catch(()=>{});
+  }
+}
+window.addEventListener("keydown",e=>{if(e.code==="Space")flap();});
+window.addEventListener("touchstart",flap);
+
+// 🏁 Win overlay
+function levelCompleteSequence(){
+  gameOver=true;
+  bgMusic.pause(); bgMusic.currentTime=0;
+  const w=document.getElementById("winOverlay");
+  w.style.display="block";
+  w.innerHTML=`
+    <div style="font-size:48px;color:#2ecc71;">🌈 LEVEL 3 COMPLETE! 🌈</div>
+    <div style="font-size:22px;">Final Score: ${score}</div>
+    <button id="nextBtn" style="font-size:26px;padding:12px 24px;background:#2ecc71;border:none;border-radius:10px;color:white;margin-top:20px;cursor:pointer;">➡️ NEXT LEVEL</button>`;
+  document.getElementById("nextBtn").onclick=()=>window.location.href="dragon_flyl4.html";
+}
+</script>
+</body>
+</html>
