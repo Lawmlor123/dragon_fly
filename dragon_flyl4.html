@@ -49,6 +49,12 @@
   }
   #mobileControls button:active{background:rgba(255,255,255,0.4);color:yellow;}
   @media(min-width:1100px){#mobileControls{display:none;}}
+
+  /* 🌀 Added: rotate notice overlay */
+  #rotateNotice {
+    display:none;position:fixed;inset:0;background:#000;color:#fff;
+    font-size:22px;align-items:center;justify-content:center;z-index:999;
+  }
 </style>
 </head>
 <body>
@@ -70,6 +76,9 @@
   <button id="leftBtn">⮜</button>
   <button id="rightBtn">⮞</button>
 </div>
+
+<!-- 🌀 Added: rotate notice -->
+<div id="rotateNotice">Please rotate your device ↻</div>
 
 <script>
 /* === GAME SETUP === */
@@ -307,6 +316,24 @@ rightBtn.addEventListener("touchstart",e=>{e.preventDefault();pressKey("ArrowRig
 rightBtn.addEventListener("touchend",()=>pressKey("ArrowRight",false));
 
 update();
+
+/* 🧩 Added: orientation + viewport adaptation */
+function isPortrait(){return window.innerHeight>window.innerWidth;}
+const rotateNotice=document.getElementById("rotateNotice");
+
+function checkOrientation(){
+  if(isPortrait()){
+    rotateNotice.style.display="flex";
+    // Zoom out for portrait so hazards stay visible
+    canvas.style.transform="scale(0.8)";
+    canvas.style.transformOrigin="top center";
+  }else{
+    rotateNotice.style.display="none";
+    canvas.style.transform="scale(1)";
+  }
+}
+window.addEventListener("resize",checkOrientation);
+checkOrientation();
 </script>
 </body>
 </html>
