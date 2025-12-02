@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Dragon Fly L5 — Pumpkin Fix Final + HP Bars + Explosions</title>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.161.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.161.0/examples/jsm/"
+  }
+}
+</script>
+
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#000;color:#fff;font-family:sans-serif;}
+#overlay,#startOverlay,#deathOverlay,#winOverlay,#scoreBoard,#lives{
+  position:absolute;z-index:10;background:rgba(0,0,0,0.6);
+  padding:8px 14px;border-radius:8px;text-align:center;
+}
+#overlay{top:10px;left:10px;}
+#scoreBoard{top:10px;right:10px;}
+#lives{top:10px;left:50%;transform:translateX(-50%);color:#ff6666;font-size:20px;letter-spacing:4px;}
+#startOverlay{top:50%;left:50%;transform:translate(-50%,-50%);display:none;font-size:22px;}
+#deathOverlay,#winOverlay{
+  top:50%;left:50%;transform:translate(-50%,-50%);display:none;text-align:center;
+}
+#deathOverlay button,#winOverlay button{
+  margin-top:10px;padding:8px 20px;border:none;border-radius:6px;background:#333;color:#fff;
+}
+</style>
+</head>
+<body>
+<div id="overlay">Loading dragon.glb…</div>
+<div id="lives">❤️❤️❤️</div>
+<div id="scoreBoard">Score 0</div>
+<div id="startOverlay">Press any arrow key to begin!</div>
+<div id="deathOverlay"></div>
+<div id="winOverlay"></div>
+<audio id="bgMusic" src="Music/Chase.mp3" loop preload="auto"></audio>
+
+<script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
+// === SCENE SETUP ===
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x202030);
+const camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,0.1,1000);
+camera.position.set(5,3,10);camera.lookAt(-10,1,-10);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);document.body.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xffffff,0x333333,1.0));
+const dir=new THREE.DirectionalLight(0xffffff,0.8);dir.position.set(5,10,7);scene.add(dir);
+
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(200,400),
+  new THREE.MeshStandardMaterial({color:0x3f2a10}));
+ground.rotation.x=-Math.PI/2;scene.add(ground);
+
+// === widened path ===
+const path=new THREE.Mesh(new THREE.PlaneGeometry(20,400),
+  new THREE.MeshStandardMaterial({color:0x705028}));
+path.rotation.x=-Math.PI/2;path.position.set(0,0.01,-100);
+scene.add(path);
+
+// simple forest (trees pushed outward to edges)
+const forest=new THREE.Group();
+for(let i=0;i<150;i++){
+  const trunk=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,1,6),
+    new THREE.MeshStandardMaterial({color:0x553311}));
+  const leaves=new THREE.Mesh(new THREE.SphereGeometry(0.6,6,6),
+    new THREE.MeshStandardMaterial({color:0x228833}));
+  trunk.position.y=0.5;leaves.position.y=1.3;
+  const tree=new THREE.Group();tree.add(trunk,leaves);
+  tree.position.set((Math.random()>0.5?1:-1)*(10+Math.random()*6),0,Math.random()*-200);
+  forest.add(tree);
+}
+scene.add(forest);
+
+// === GLOBALS ===
+const overlay=document.getElementById("overlay"),
+      startOverlay=document.getElementById("startOverlay"),
+      deathOverlay=document.getElementById("deathOverlay"),
+      winOverlay=document.getElementById("winOverlay"),
+      scoreBoard=document.getElementById("scoreBoard"),
+      livesDisplay=document.getElementById("lives"),
+      bgMusic=document.getElementById("bgMusic");
+
+let dragon,pumpModel;
+let state="loading",rotationProgress=0,rotateAngle=0;
+let hazards=[],fireballs=[];
+let score=0,lives=3,level=1,kills=0;
+let hazardSpeed=0.028,lastWave=0;
+
+// === LOAD MODELS ===
+const loader=new GLTFLoader();
+
+// Dragon
+loader.load("dragon.glb", glt => {
+  dragon=glt.scene;
+  dragon.traverse(o=>{
+    if(o.isMesh)
+      o.material=new THREE.MeshStandardMaterial({color:0xff4444,metalness:0.1,roughness:0.8});
+  });
+  const box=new THREE.Box3().setFromObject(dragon);const size=new THREE.Vector3();box.getSize(size);
+  const c=new THREE.Vector3();box.getCenter(c);dragon.position.sub(c);
+  dragon.scale.setScalar(7/Math.max(size.x,size.y,size.z));
+  dragon.position.set(0,1,5);
+  scene.add(dragon);
+  overlay.textContent="Loading pump.glb…";
+});
+
+// === PUMPKIN WITH RECTANGLE FILTER (unchanged) ===
+loader.load("pump.glb", glt => {
+  pumpModel=glt.scene;
+  window.pumpModel=pumpModel;
+  console.group("🎃 PUMPKIN GLB — FULL INSPECTION");
+  pumpModel.traverse(o=>{
+    if(o.isMesh){
+      o.geometry.computeBoundingBox();
+      const s=new THREE.Vector3();o.geometry.boundingBox.getSize(s);
+      const n=o.name.toLowerCase();
+      const badName=/(cube|box|plane|rect|collision|collider|dummy|occluder)/i.test(n);
+      const huge=(s.x>4||s.y>4||s.z>4);
+      const flat=((s.x>2&&s.z>2&&s.y<0.1)||(s.x>2&&s.y>2&&s.z<0.1));
+      if(badName||huge||flat){o.visible=false;o.scale.set(0,0,0);}
+    }
+  });
+  console.groupEnd();
+  window.hidePumpkinRectangles=function(){
+    let hidden=0;
+    pumpModel.traverse(o=>{
+      if(o.isMesh){
+        o.geometry.computeBoundingBox();
+        const s=new THREE.Vector3();o.geometry.boundingBox.getSize(s);
+        const flat=((s.x>1&&s.z>1&&s.y<0.05)||(s.y>1&&s.z>1&&s.x<0.05));
+        if(flat){o.visible=false;o.scale.set(0,0,0);hidden++;}
+      }
+    });
+    console.log("hidePumpkinRectangles(): hidden =",hidden);
+  };
+  const b=new THREE.Box3().setFromObject(pumpModel);
+  const center=new THREE.Vector3();b.getCenter(center);
+  pumpModel.position.sub(center);
+  overlay.textContent="Ready!";
+  startOverlay.style.display="block";
+  state="idle";
+});
+
+// === COLORS ===
+const pumpkinVariants=[
+  {color:0xff8800,emiss:0x552200},
+  {color:0x44ff44,emiss:0x114411},
+  {color:0xcc66ff,emiss:0x441155},
+  {color:0x66ccff,emiss:0x112244},
+  {color:0xffffff,emiss:0x333333}
+];
+
+// === UI HELPERS ===
+function updateLives(){livesDisplay.textContent="❤️".repeat(lives);}
+updateLives();
+
+// === CONTROLS ===
+const keys={ArrowLeft:false,ArrowRight:false,ArrowUp:false,ArrowDown:false,KeyF:false};
+addEventListener("keydown",e=>{
+  if(keys.hasOwnProperty(e.code))keys[e.code]=true;
+  if(state==="idle"&&e.code.startsWith("Arrow"))startGame();
+});
+addEventListener("keyup",e=>{if(keys.hasOwnProperty(e.code))keys[e.code]=false;});
+
+// === FLOW ===
+function startGame(){startOverlay.style.display="none";bgMusic.play();state="turning";rotationProgress=0;}
+function resetGame(){
+  hazards.forEach(h=>scene.remove(h));hazards=[];
+  fireballs.forEach(f=>scene.remove(f.mesh));fireballs=[];
+  dragon.position.set(0,1,5);dragon.rotation.set(0,0,0);
+  score=0;scoreBoard.textContent="Score 0";lives=3;updateLives();
+  hazardSpeed=0.028;level=1;kills=0;
+  deathOverlay.style.display="none";winOverlay.style.display="none";
+  state="idle";startOverlay.style.display="block";
+}
+function dragonHit(){
+  lives--;updateLives();
+  dragon.traverse(o=>{if(o.isMesh)o.material.color.set(0xffffff);});
+  setTimeout(()=>dragon.traverse(o=>{if(o.isMesh)o.material.color.set(0xff4444);}),300);
+  if(lives<=0)gameOver();
+}
+function gameOver(){
+  state="dead";bgMusic.pause();
+  deathOverlay.innerHTML=`<h1>💀 Dragon Died 💀</h1><button id='retry'>Try Again</button>`;
+  deathOverlay.style.display="block";
+  document.getElementById("retry").onclick=resetGame;
+}
+function winLevel(){
+  state="win";bgMusic.pause();
+  winOverlay.innerHTML=`<h1>🏆 You Win! 🏆</h1><div>Score ${score}</div><button id='again'>Play Again</button>`;
+  winOverlay.style.display="block";
+  document.getElementById("again").onclick=resetGame;
+}
+
+// === HELPER: attach health bar to a pumpkin ===
+function attachHealthBar(pumpkin){
+  const group=new THREE.Group();
+  for(let i=0;i<3;i++){
+    const bar=new THREE.Mesh(
+      new THREE.PlaneGeometry(0.3,0.06),
+      new THREE.MeshBasicMaterial({color:0x00ff00,side:THREE.DoubleSide})
+    );
+    bar.position.x=(i-1)*0.35;
+    group.add(bar);
+  }
+  group.position.set(0,pumpkin.scale.x*1.6,0);
+  pumpkin.add(group);
+  pumpkin.userData.hpBars=group.children;
+}
+
+// === HELPER: simple explosion effect ===
+function spawnExplosion(pos,color=0xff8800){
+  const parts=[];
+  for(let i=0;i<12;i++){
+    const mesh=new THREE.Mesh(
+      new THREE.SphereGeometry(0.15,6,6),
+      new THREE.MeshBasicMaterial({color})
+    );
+    mesh.position.copy(pos);
+    scene.add(mesh);
+    const dir=new THREE.Vector3((Math.random()-0.5)*2,Math.random()*2,(Math.random()-0.5)*2);
+    parts.push({mesh,dir});
+  }
+  const start=performance.now();
+  const animateExp=()=>{
+    const t=(performance.now()-start)/400;
+    parts.forEach(p=>{
+      p.mesh.position.addScaledVector(p.dir,0.05);
+      p.mesh.scale.setScalar(1-t);
+      p.mesh.material.opacity=1-t;
+      p.mesh.material.transparent=true;
+      if(t>=1){scene.remove(p.mesh);}
+    });
+    if(t<1)requestAnimationFrame(animateExp);
+  };
+  animateExp();
+}
+
+// === PUMPKINS ===
+function createPumpkin(){
+  if(!pumpModel)return;
+  const clone=pumpModel.clone(true);
+  const v=pumpkinVariants[Math.floor(Math.random()*pumpkinVariants.length)];
+  clone.traverse(o=>{
+    if(o.isMesh && o.visible){
+      o.material=o.material.clone();
+      o.material.color.setHex(v.color);
+      o.material.emissive.setHex(v.emiss);
+    }
+  });
+  const scale=1.4+Math.random()*0.6;
+  clone.scale.setScalar(scale);
+  clone.userData.radius=scale*2.4;
+  clone.userData.hp=3;
+  const candle=new THREE.PointLight(v.color,1.2,6);
+  candle.position.set(0,scale*0.8,0);
+  clone.add(candle);
+  clone.userData.candle=candle;
+  clone.userData.rotSpeed=new THREE.Vector3(Math.random()*0.02,Math.random()*0.03,0);
+
+  // attach hp bar
+  attachHealthBar(clone);
+
+  return clone;
+}
+
+function spawnWave(force=false){
+  const now=performance.now();if(!force&&now-lastWave<6500)return;
+  lastWave=now;
+  const need=3-hazards.length;
+  for(let i=0;i<need;i++){
+    const h=createPumpkin();if(!h)continue;
+    h.position.set((Math.random()-0.5)*8,1,-80-Math.random()*30);
+    scene.add(h);hazards.push(h);
+  }
+}
+
+// === FIREBALLS ===
+let lastFire=0;const fireCooldown=700;
+function shootFire(){
+  const now=performance.now();if(now-lastFire<fireCooldown)return;lastFire=now;
+  const m=new THREE.Mesh(new THREE.SphereGeometry(0.3,8,8),
+    new THREE.MeshStandardMaterial({color:0xff6600,emissive:0x331100,emissiveIntensity:1}));
+  const spawn=dragon.position.clone().add(new THREE.Vector3(0,1.6,0));
+  const fwd=new THREE.Vector3(0,0,-1); // shoots forward down path
+  m.position.copy(spawn);
+  fireballs.push({mesh:m,vel:fwd.multiplyScalar(0.8)});
+  scene.add(m);
+}
+
+// === COLLISION ===
+function segmentSphereIntersect(p1,p2,c,r){
+  const d=new THREE.Vector3().subVectors(p2,p1);
+  const f=new THREE.Vector3().subVectors(p1,c);
+  const a=d.dot(d),b=2*f.dot(d),cc=f.dot(f)-r*r;
+  let disc=b*b-4*a*cc;if(disc<0)return false;
+  disc=Math.sqrt(disc);
+  const t1=(-b-disc)/(2*a),t2=(-b+disc)/(2*a);
+  return (t1>=0&&t1<=1)||(t2>=0&&t2<=1);
+}
+
+// === ANIMATE ===
+function animate(){
+  requestAnimationFrame(animate);
+  if(!dragon)return;
+  if(state==="idle"){
+    dragon.rotation.y=Math.sin(Date.now()*0.0015)*0.25;
+    dragon.position.y=1+Math.sin(Date.now()*0.004)*0.15;
+  }
+  if(state==="turning"){
+    rotationProgress+=0.02;
+    dragon.rotation.y=THREE.MathUtils.lerp(0,Math.PI*1.2,rotationProgress);
+    if(rotationProgress>=1){state="playing";spawnWave(true);}
+  }
+  if(state==="playing"){
+    if(keys.ArrowLeft)rotateAngle+=0.015;
+    if(keys.ArrowRight)rotateAngle-=0.015;
+    dragon.rotation.y=rotateAngle;
+    const fwd=new THREE.Vector3(0,0,1).applyQuaternion(dragon.quaternion).normalize();
+    if(keys.ArrowUp)dragon.position.addScaledVector(fwd,0.3);
+    if(keys.ArrowDown)dragon.position.addScaledVector(fwd,-0.3);
+    dragon.position.x=Math.max(-10,Math.min(10,dragon.position.x));
+    dragon.position.z=Math.max(-100,Math.min(8,dragon.position.z));
+
+    hazards.forEach((h,i)=>{
+      h.rotation.x+=h.userData.rotSpeed.x;h.rotation.y+=h.userData.rotSpeed.y;
+      h.position.z+=hazardSpeed;
+      if(h.userData.candle){h.userData.candle.intensity=1+Math.sin(Date.now()*0.012+i)*0.25;}
+      if(h.position.z>7){scene.remove(h);hazards.splice(i,1);dragonHit();}
+      else if(dragon.position.distanceTo(h.position)<1.4){scene.remove(h);hazards.splice(i,1);dragonHit();}
+    });
+    spawnWave();
+
+    fireballs.forEach((f,i)=>{
+      const prev=f.mesh.position.clone();
+      f.mesh.position.add(f.vel);
+      const next=f.mesh.position;
+      hazards.forEach((h,j)=>{
+        if(segmentSphereIntersect(prev,next,h.position,h.userData.radius)){
+          h.userData.hp--;
+          // hide one bar per hit
+          if(h.userData.hpBars){
+            const idx=Math.max(h.userData.hp,0);
+            if(h.userData.hpBars[idx])h.userData.hpBars[idx].visible=false;
+          }
+          scene.remove(f.mesh);fireballs.splice(i,1);
+          if(h.userData.hp<=0){
+            // explosion on destroy
+            spawnExplosion(h.position.clone(),h.userData.candle?.color?.getHex()||0xff8800);
+            scene.remove(h);hazards.splice(j,1);
+            score+=100;scoreBoard.textContent=`Score ${score}`;kills++;
+            if(score>=2000)winLevel();
+            if(kills%10===0){level++;hazardSpeed+=0.005;}
+          }
+        }
+      });
+      if(Math.abs(f.mesh.position.z)>200){scene.remove(f.mesh);fireballs.splice(i,1);}
+    });
+    if(keys.KeyF){shootFire();keys.KeyF=false;}
+  }
+  renderer.render(scene,camera);
+}
+animate();
+
+// === RESIZE ===
+addEventListener("resize",()=>{
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>
