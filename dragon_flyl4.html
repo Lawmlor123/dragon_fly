@@ -302,21 +302,21 @@ rightBtn.addEventListener("touchend",()=>pressKey("ArrowRight",false));
 
 update();
 
-/* ===== Reliable Orientation Handling for iPhone ===== */
+/* ===== FIXED iPhone Orientation Handling ===== */
 const rotateNotice=document.getElementById("rotateNotice");
 function applyOrientationLayout(){
   const portrait=window.innerHeight>window.innerWidth;
+
   if(portrait){
     rotateNotice.style.display="flex";
-    canvas.style.display="none";
+    // DO NOT hide the canvas on iPhone
   }else{
     rotateNotice.style.display="none";
-    canvas.style.display="block";
     resize();
   }
 }
 window.addEventListener("resize",()=>setTimeout(applyOrientationLayout,100));
-window.addEventListener("orientationchange",()=>setTimeout(applyOrientationLayout,100));
+window.addEventListener("orientationchange",()=>setTimeout(applyOrientationLayout,150));
 applyOrientationLayout();
 </script>
 </body>
