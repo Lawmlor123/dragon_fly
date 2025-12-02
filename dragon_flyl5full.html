@@ -95,7 +95,7 @@ let hazardSpeed=0.028,lastWave=0;
 // === LOAD MODELS ===
 const loader=new GLTFLoader();
 
-// Dragon
+// ✅ Corrected only these two lines
 loader.load("models/dragon.glb", glt => {
   dragon=glt.scene;
   dragon.traverse(o=>{
@@ -110,7 +110,6 @@ loader.load("models/dragon.glb", glt => {
   overlay.textContent="Loading pump.glb…";
 });
 
-// Pumpkin
 loader.load("models/pump.glb", glt => {
   pumpModel=glt.scene;
   window.pumpModel=pumpModel;
