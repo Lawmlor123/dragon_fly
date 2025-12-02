@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dragon Adventure – Level 4 Final + Music & Timer</title>
+<style>
+  html,body{margin:0;overflow:hidden;background:#87ceeb;}
+  canvas{display:block;}
+  #instructions{
+    position:absolute;top:10px;left:10px;
+    color:#fff;font-family:sans-serif;
+    background:rgba(0,0,0,0.55);
+    padding:16px 20px;border-radius:12px;
+    font-size:18px;line-height:1.5;
+    max-width:380px;word-wrap:break-word;white-space:normal;
+    box-sizing:border-box;z-index:10;
+  }
+  #instructions small{font-size:16px;}
+  #scoreBoard{
+    position:absolute;top:10px;right:10px;
+    font-size:24px;color:#222;
+    background:rgba(255,255,255,0.6);
+    padding:6px 14px;border-radius:8px;
+    font-family:sans-serif;z-index:10;
+  }
+  #timerBoard{
+    position:absolute;top:50px;right:10px;
+    font-size:20px;color:#222;
+    background:rgba(255,255,255,0.6);
+    padding:6px 14px;border-radius:8px;
+    font-family:sans-serif;z-index:10;
+  }
+  #winOverlay{
+    position:absolute;display:none;
+    top:40%;left:50%;transform:translate(-50%,-50%);
+    text-align:center;color:#e74c3c;
+    background:rgba(255,255,255,0.9);
+    padding:40px 60px;border-radius:20px;
+    font-family:sans-serif;z-index:20;
+    animation:pop 1s ease infinite alternate;
+  }
+  #winOverlay h1{font-size:60px;margin:0 0 20px;}
+  #winOverlay button{
+    font-size:22px;margin:10px;padding:10px 24px;
+    border:none;border-radius:8px;cursor:pointer;
+    background:#f39c12;color:#fff;
+  }
+  #winOverlay button:hover{background:#e67e22;}
+  @keyframes pop{from{transform:translate(-50%,-50%) scale(1);}to{transform:translate(-50%,-50%) scale(1.05);}}
+</style>
+</head>
+<body>
+<div id="instructions">
+  🐉 <b>How to Play:</b><br/>
+  • Use the arrow keys to move left and right.<br/>
+  • Hold the space bar (or tap and hold on a tablet / phone) to fly and breathe fire!<br/><br/>
+  Each hazard is worth 100 points — <small>reach <span style="white-space:nowrap;">1500 points</span> to win!</small>
+</div>
+
+<div id="scoreBoard">Score: 0</div>
+<div id="timerBoard">Time: 0.0 s</div>
+<div id="winOverlay"></div>
+
+<!-- 🎵 Background Music -->
+<audio id="bgMusic" src="Music/Chase.mp3" loop preload="auto"></audio>
+
+<canvas id="game"></canvas>
+
+<script>
+/* === SETUP === */
+const canvas=document.getElementById("game"),ctx=canvas.getContext("2d");
+resize();window.addEventListener("resize",resize);
+function resize(){canvas.width=innerWidth;canvas.height=innerHeight;}
+
+const music=document.getElementById("bgMusic");
+let musicPlaying=false;
+function startMusic(){
+  if(!musicPlaying){
+    music.volume=0.25;
+    music.play().catch(()=>{});
+    musicPlaying=true;
+  }
+}
+window.addEventListener("keydown",startMusic);
+window.addEventListener("touchstart",startMusic);
+
+const scoreBoard=document.getElementById("scoreBoard");
+const timerBoard=document.getElementById("timerBoard");
+const winOverlay=document.getElementById("winOverlay");
+
+const groundH=80;const groundY=()=>canvas.height-groundH;
+let camX=0,score=0;
+const POINTS_PER_HAZARD=100,WIN_SCORE=1500;
+
+/* === TIMER === */
+let startTime=null,elapsed=0,timerRunning=false;
+const BEST_KEY="dragonL4_bestTime";
+
+function startTimerIfNeeded(){
+  if(!timerRunning){
+    startTime=performance.now();
+    timerRunning=true;
+  }
+}
+window.addEventListener("keydown",startTimerIfNeeded);
+window.addEventListener("touchstart",startTimerIfNeeded);
+
+/* === DRAGON === */
+let dragon={x:200,y:groundY()-60,radius:60,vx:0,vy:0};
+const keys={};addEventListener("keydown",e=>keys[e.code]=true);
+addEventListener("keyup",e=>keys[e.code]=false);
+
+/* === FIREBALLS === */
+let fireballs=[];
+function shootFireball(){fireballs.push({x:dragon.x+dragon.radius*1.4,y:dragon.y-8,vx:12,life:80});}
+addEventListener("keydown",e=>{if(e.code==="Space")shootFireball();});
+canvas.addEventListener("touchstart",()=>{keys.Space=true;shootFireball();});
+canvas.addEventListener("touchend",()=>{keys.Space=false;});
+
+/* === HAZARDS === */
+let hazards=[],currentHazardIndex=0;createHazards();
+function createHazards(){
+  hazards=[];let posX=1000;
+  for(let i=0;i<15;i++){hazards.push(makeHazard(posX));posX+=500+Math.random()*300;}
+  currentHazardIndex=0;
+}
+function makeHazard(x){
+  const t=["house","rock","tower","tree"][Math.floor(Math.random()*4)];
+  const cSets={house:["#ffcc66","#aa3333"],rock:["#6b4f3a","#8b6d5c"],tower:["#bebebe","#8b8b8b"],tree:["#228b22","#006400"]};
+  const c=cSets[t];
+  return{type:t,x,y:groundY()-60,w:80+Math.random()*40,h:90+Math.random()*40,hits:3,alive:true,flames:[],bodyColor:c[0],roofColor:c[1]};
+}
+
+/* === UPDATE === */
+function update(){
+  const spd=6,g=0.8,lift=1.2,maxUp=-10,maxDn=15;
+  dragon.vx=0;
+  if(keys["ArrowLeft"]||keys["KeyA"])dragon.vx=-spd;
+  if(keys["ArrowRight"]||keys["KeyD"])dragon.vx=spd;
+  dragon.x+=dragon.vx;
+  if(keys.Space){dragon.vy-=lift;if(dragon.vy<maxUp)dragon.vy=maxUp;}
+  else{dragon.vy+=g;if(dragon.vy>maxDn)dragon.vy=maxDn;}
+  dragon.y+=dragon.vy;
+  const gL=groundY()-dragon.radius; if(dragon.y>gL){dragon.y=gL;dragon.vy=0;}
+  camX=dragon.x-canvas.width*0.3;if(camX<0)camX=0;
+
+  for(let i=fireballs.length-1;i>=0;i--){
+    const f=fireballs[i];f.x+=f.vx;f.life--;
+    if(f.life<=0){fireballs.splice(i,1);continue;}
+    for(const h of hazards){
+      if(!h.alive)continue;
+      if(f.x>h.x-h.w/2&&f.x<h.x+h.w/2&&f.y>h.y-h.h&&f.y<h.y){
+        h.hits--;fireballs.splice(i,1);
+        if(h.hits<=0)destroyHazard(h);
+        break;
+      }
+    }
+  }
+  for(const h of hazards){
+    for(const fl of h.flames){fl.life--;fl.size+=0.6;fl.y-=0.8;fl.opacity=Math.max(0,fl.life/30);}
+    h.flames=h.flames.filter(f=>f.life>0);
+  }
+  const active=hazards[currentHazardIndex];
+  if(active&&!active.alive&&active.flames.length===0)currentHazardIndex++;
+
+  if(timerRunning){
+    elapsed=(performance.now()-startTime)/1000;
+    timerBoard.textContent=`Time: ${elapsed.toFixed(1)} s`;
+  }
+
+  draw(); requestAnimationFrame(update);
+}
+
+/* === DESTROY HAZARD === */
+function destroyHazard(h){
+  h.alive=false; h.flames=[];
+  score+=POINTS_PER_HAZARD;
+  scoreBoard.textContent=`Score: ${score}`;
+  if(score>=WIN_SCORE){levelWin();}
+  for(let i=0;i<30;i++){
+    h.flames.push({x:h.x+(Math.random()-0.5)*h.w,y:h.y-Math.random()*h.h,size:10+Math.random()*10,life:30+Math.random()*10,opacity:1});
+  }
+}
+
+/* === LEVEL WIN === */
+function levelWin(){
+  timerRunning=false;
+  const finalTime=elapsed;
+  let best=localStorage.getItem(BEST_KEY);
+  if(!best||finalTime<parseFloat(best)){best=finalTime;localStorage.setItem(BEST_KEY,best);}
+  music.pause();music.currentTime=0;
+  winOverlay.style.display="block";
+  winOverlay.innerHTML=`
+    <h1>🏆 You Win! 🏆</h1>
+    <div>Time: ${finalTime.toFixed(1)} s &nbsp;(Best: ${parseFloat(best).toFixed(1)} s)</div>
+    <button id="playAgainBtn">Play Again</button>
+    <button id="nextLevelBtn">Level 5 →</button>`;
+  document.getElementById("playAgainBtn").onclick=()=>{
+    winOverlay.style.display="none";
+    score=0;scoreBoard.textContent="Score: 0";
+    fireballs=[];createHazards();
+    elapsed=0;timerBoard.textContent="Time: 0.0 s";
+    timerRunning=false;startTime=null;
+    music.currentTime=0;music.play();musicPlaying=true;
+  };
+  document.getElementById("nextLevelBtn").onclick=()=>alert("Next level coming soon!");
+}
+
+/* === DRAW === */
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const skyGrad=ctx.createLinearGradient(0,0,0,canvas.height);
+  skyGrad.addColorStop(0,"#87ceeb");skyGrad.addColorStop(1,"#4ca3dd");
+  ctx.fillStyle=skyGrad;ctx.fillRect(0,0,canvas.width,canvas.height);
+  const tileW=200;ctx.fillStyle="#2e8b57";
+  for(let gx=-((camX)%tileW);gx<canvas.width;gx+=tileW){ctx.fillRect(gx,groundY(),tileW,groundH);}
+  for(const h of hazards){
+    const drawX=h.x-camX;if(drawX+h.w<0||drawX-h.w>canvas.width)continue;
+    if(h.alive)drawHazard(h,drawX);
+    for(const f of h.flames){
+      const g=ctx.createRadialGradient(f.x-camX,f.y,2,f.x-camX,f.y,f.size);
+      g.addColorStop(0,`rgba(255,255,150,${f.opacity})`);
+      g.addColorStop(0.4,`rgba(255,120,0,${f.opacity})`);
+      g.addColorStop(1,`rgba(255,0,0,0)`);
+      ctx.fillStyle=g;ctx.beginPath();
+      ctx.arc(f.x-camX,f.y,f.size,0,Math.PI*2);ctx.fill();
+    }
+  }
+  for(const f of fireballs){
+    const drawX=f.x-camX;const grd=ctx.createRadialGradient(drawX,f.y,2,drawX,f.y,12);
+    grd.addColorStop(0,"#ffff99");grd.addColorStop(0.4,"#ff9900");grd.addColorStop(1,"rgba(255,85,0,0)");
+    ctx.fillStyle=grd;ctx.beginPath();ctx.arc(drawX,f.y,12,0,Math.PI*2);ctx.fill();
+  }
+  drawDragon(dragon.x-camX);
+}
+
+/* === DRAW DRAGON === */
+function drawDragon(drawX){
+  const grad=ctx.createLinearGradient(drawX-40,dragon.y-40,drawX+40,dragon.y+40);
+  grad.addColorStop(0,"#e74c3c");grad.addColorStop(1,"#f39c12");
+  ctx.fillStyle=grad;ctx.beginPath();
+  ctx.ellipse(drawX,dragon.y,dragon.radius,dragon.radius*0.7,0,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle="#f39c12";ctx.lineWidth=10;
+  ctx.beginPath();const tailWiggle=Math.sin(Date.now()/150)*10;
+  ctx.moveTo(drawX-dragon.radius*1.5,dragon.y+tailWiggle);
+  ctx.lineTo(drawX-dragon.radius*3,dragon.y+tailWiggle*0.5);ctx.stroke();
+  ctx.beginPath();ctx.arc(drawX+dragon.radius*0.9,dragon.y-8,25,0,Math.PI*2);
+  ctx.fillStyle=grad;ctx.fill();
+  ctx.fillStyle="#f1c40f";ctx.beginPath();
+  ctx.moveTo(drawX+dragon.radius*0.8,dragon.y-28);
+  ctx.lineTo(drawX+dragon.radius*1.1,dragon.y-48);
+  ctx.lineTo(drawX+dragon.radius*1.3,dragon.y-28);ctx.closePath();ctx.fill();
+  ctx.save();ctx.translate(drawX,dragon.y);
+  const wingAngle=Math.sin(Date.now()/180)*0.4;ctx.rotate(wingAngle);
+  ctx.fillStyle="#f1c40f";ctx.beginPath();
+  ctx.moveTo(0,0);ctx.quadraticCurveTo(-80,-50,-120,0);
+  ctx.quadraticCurveTo(-80,50,0,0);ctx.fill();ctx.restore();
+  ctx.fillStyle="#fff";ctx.beginPath();
+  ctx.arc(drawX+dragon.radius,dragon.y-12,8,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle="#000";ctx.beginPath();
+  ctx.arc(drawX+dragon.radius,dragon.y-12,3,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle="#c0392b";ctx.beginPath();
+  ctx.ellipse(drawX+dragon.radius*1.25,dragon.y-6,10,6,0,0,Math.PI*2);ctx.fill();
+}
+
+/* === DRAW HAZARDS === */
+function drawHazard(h,drawX){
+  switch(h.type){
+    case"house":
+      ctx.fillStyle=h.bodyColor;ctx.fillRect(drawX-h.w/2,h.y-h.h,h.w,h.h);
+      ctx.fillStyle=h.roofColor;ctx.beginPath();
+      ctx.moveTo(drawX-h.w/2-5,h.y-h.h);ctx.lineTo(drawX,h.y-h.h-40);ctx.lineTo(drawX+h.w/2+5,h.y-h.h);
+      ctx.closePath();ctx.fill();ctx.save();ctx.translate(drawX,h.y-h.h/2+10);drawPoisonSymbol();ctx.restore();break;
+    case"rock":
+      ctx.fillStyle=h.bodyColor;ctx.beginPath();
+      ctx.moveTo(drawX-h.w/2,h.y);ctx.lineTo(drawX-h.w/2+10,h.y-h.h*0.6);ctx.lineTo(drawX-h.w/2+25,h.y-h.h);
+      ctx.lineTo(drawX+h.w/3,h.y-h.h*0.7);ctx.lineTo(drawX+h.w/2,h.y);ctx.closePath();ctx.fill();break;
+    case"tower":
+      ctx.fillStyle=h.bodyColor;ctx.fillRect(drawX-h.w/2,h.y-h.h,h.w,h.h);
+      ctx.fillStyle=h.roofColor;ctx.fillRect(drawX-h.w/2+10,h.y-h.h-15,h.w-20,15);break;
+    case"tree":
+      ctx.fillStyle="#8B4513";ctx.fillRect(drawX-h.w*0.1,h.y-h.h*0.5,h.w*0.2,h.h*0.5);
+      ctx.fillStyle=h.bodyColor;ctx.beginPath();ctx.arc(drawX,h.y-h.h*0.7,h.w*0.6,0,Math.PI*2);ctx.fill();break;
+  }
+  ctx.fillStyle="#ff3333";const barW=(h.hits/3)*h.w;
+  ctx.fillRect(drawX-h.w/2,h.y-h.h-10,barW,5);
+}
+function drawPoisonSymbol(){
+  ctx.fillStyle="#000";ctx.beginPath();ctx.arc(0,0,14,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(-5,-3,3,0,Math.PI*2);ctx.arc(5,-3,3,0,Math.PI*2);ctx.fill();
+  ctx.fillRect(-6,5,12,3);
+  ctx.strokeStyle="#fff";ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(-14,14);ctx.lineTo(14,-14);ctx.moveTo(-14,-14);ctx.lineTo(14,14);ctx.stroke();
+}
+
+update();
+</script>
+</body>
+</html>
