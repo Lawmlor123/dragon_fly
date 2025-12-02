@@ -50,17 +50,21 @@
   #mobileControls button:active{background:rgba(255,255,255,0.4);color:yellow;}
   @media(min-width:1100px){#mobileControls{display:none;}}
 
-  /* 🌀 Added: rotate notice overlay */
-  #rotateNotice {
-    display:none;position:fixed;inset:0;background:#000;color:#fff;
-    font-size:22px;align-items:center;justify-content:center;z-index:999;
+  /* rotate notice overlay */
+  #rotateNotice{
+    display:none;
+    position:fixed;inset:0;
+    background:#000;color:#fff;
+    font-size:24px;
+    align-items:center;justify-content:center;
+    z-index:999;text-align:center;
   }
 </style>
 </head>
 <body>
 <div id="instructions">
  🐉 <b>How to Play:</b><br/>
- • Use the arrow keys or tap ⮜⮞ to move left and right.<br/>
+ • Use arrow keys or tap ⮜⮞ to move left/right.<br/>
  • Tap and hold anywhere to fly and breathe fire!<br/><br/>
  Each hazard is worth 100 points — reach 1500 points to win!
 </div>
@@ -77,7 +81,7 @@
   <button id="rightBtn">⮞</button>
 </div>
 
-<!-- 🌀 Added: rotate notice -->
+<!-- added: rotate notice -->
 <div id="rotateNotice">Please rotate your device ↻</div>
 
 <script>
@@ -186,7 +190,6 @@ function levelWin(){
     <div>Time: ${finalTime.toFixed(1)} s (Best: ${parseFloat(best).toFixed(1)} s)</div>
     <button id="playAgainBtn">Play Again</button>
     <button id="nextLevelBtn">Level 5 →</button>`;
-  // replay button
   document.getElementById("playAgainBtn").onclick=()=>{
     winOverlay.style.display="none";
     score=0;scoreBoard.textContent="Score: 0";
@@ -194,10 +197,7 @@ function levelWin(){
     timerBoard.textContent="Time: 0.0 s";timerRunning=false;startTime=null;
     music.currentTime=0;music.play();musicPlaying=true;
   };
-  // new link straight to level 5 HTML
-  document.getElementById("nextLevelBtn").onclick=()=>{
-    window.location.href="dragon_flyl5full.html";
-  };
+  document.getElementById("nextLevelBtn").onclick=()=>{window.location.href="dragon_flyl5full.html";};
 }
 
 function draw(){
@@ -259,8 +259,7 @@ function drawDragon(drawX){
   ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(drawX+dragon.radius,dragon.y-12,8,0,Math.PI*2);ctx.fill();
   ctx.fillStyle="#000";ctx.beginPath();ctx.arc(drawX+dragon.radius,dragon.y-12,3,0,Math.PI*2);ctx.fill();
   ctx.fillStyle="#c0392b";ctx.beginPath();
-  ctx.ellipse(drawX+dragon.radius*1.25,dragon.y-6,10,6,0,0,Math.PI*2);
-  ctx.fill();
+  ctx.ellipse(drawX+dragon.radius*1.25,dragon.y-6,10,6,0,0,Math.PI*2);ctx.fill();
 }
 
 function drawHazard(h,drawX){
@@ -317,23 +316,23 @@ rightBtn.addEventListener("touchend",()=>pressKey("ArrowRight",false));
 
 update();
 
-/* 🧩 Added: orientation + viewport adaptation */
-function isPortrait(){return window.innerHeight>window.innerWidth;}
+/* ===== Improved Orientation Handling ===== */
+function isPortrait(){return window.matchMedia("(orientation: portrait)").matches;}
 const rotateNotice=document.getElementById("rotateNotice");
 
-function checkOrientation(){
+function applyOrientationLayout(){
   if(isPortrait()){
-    rotateNotice.style.display="flex";
-    // Zoom out for portrait so hazards stay visible
-    canvas.style.transform="scale(0.8)";
-    canvas.style.transformOrigin="top center";
+    rotateNotice.style.display="flex";     // show notice
+    canvas.style.display="none";           // pause view
   }else{
-    rotateNotice.style.display="none";
-    canvas.style.transform="scale(1)";
+    rotateNotice.style.display="none";     // hide notice
+    canvas.style.display="block";          // bring canvas back
+    resize();                              // ensure correct size
   }
 }
-window.addEventListener("resize",checkOrientation);
-checkOrientation();
+window.addEventListener("orientationchange",()=>setTimeout(applyOrientationLayout,200));
+window.addEventListener("resize",()=>setTimeout(applyOrientationLayout,100));
+applyOrientationLayout();
 </script>
 </body>
 </html>
