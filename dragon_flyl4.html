@@ -217,8 +217,10 @@ function draw(){
   for(const f of fireballs){
     const drawX=f.x-camX;
     const grd=ctx.createRadialGradient(drawX,f.y,2,drawX,f.y,12);
-    grd.addColorStop(0,"#ffff99");grd.addColorStop(0.4,"#ff9900");grd.addColorStop(1,"rgba(255,85,0,0)");
-    ctx.fillStyle=grd;ctx.beginPath();ctx.arc(drawX,f.y,12,0,Math.PI*2);ctx.fill();
+    grd.addColorStop(0,"#ffff99");grd.addColorStop(0.4,"#ff9900");
+    grd.addColorStop(1,"rgba(255,85,0,0)");
+    ctx.fillStyle=grd;
+    ctx.beginPath();ctx.arc(drawX,f.y,12,0,Math.PI*2);ctx.fill();
   }
   drawDragon(dragon.x-camX);
 }
@@ -284,7 +286,9 @@ function drawHazard(h,drawX){
 function drawPoisonSymbol(){
   ctx.fillStyle="#000";ctx.beginPath();ctx.arc(0,0,14,0,Math.PI*2);ctx.fill();
   ctx.fillStyle="#fff";ctx.beginPath();
-  ctx.arc(-5,-3,3,0,Math.PI*2);ctx.arc(5,-3,3,0,Math.PI*2);ctx.fill();
+  ctx.arc(-5,-3,3,0,Math.PI*2);
+  ctx.arc(5,-3,3,0,Math.PI*2);
+  ctx.fill();
   ctx.fillRect(-6,5,12,3);
   ctx.strokeStyle="#fff";ctx.lineWidth=2;
   ctx.beginPath();ctx.moveTo(-14,14);ctx.lineTo(14,-14);
@@ -302,21 +306,55 @@ rightBtn.addEventListener("touchend",()=>pressKey("ArrowRight",false));
 
 update();
 
-/* ===== FIXED iPhone Orientation Handling ===== */
-const rotateNotice=document.getElementById("rotateNotice");
-function applyOrientationLayout(){
-  const portrait=window.innerHeight>window.innerWidth;
+/* ===== Improved iPhone Orientation Handling (with fail‑safe bypass) ===== */
+const rotateNotice = document.getElementById("rotateNotice");
 
-  if(portrait){
-    rotateNotice.style.display="flex";
-    // DO NOT hide the canvas on iPhone
-  }else{
-    rotateNotice.style.display="none";
+if (!rotateNotice.dataset.patched) {
+  rotateNotice.innerHTML = `
+    <div style="text-align:center;">
+      <div style="margin-bottom:16px;">Please rotate your device ↻</div>
+      <button id="playAnywayBtn"
+              style="padding:10px 20px;font-size:18px;border:none;border-radius:8px;
+                     background:#f39c12;color:#fff;cursor:pointer;">
+        Play Anyway
+      </button>
+    </div>
+  `;
+  rotateNotice.dataset.patched = "true";
+}
+
+let forcePlay = false;
+
+document.getElementById("playAnywayBtn").addEventListener("click", () => {
+  forcePlay = true;
+  rotateNotice.style.display = "none";
+  resize();
+});
+
+function isPortrait() {
+  if (window.matchMedia("(orientation: portrait)").matches) return true;
+  if (window.matchMedia("(orientation: landscape)").matches) return false;
+  return window.innerHeight > window.innerWidth;
+}
+
+function applyOrientationLayout() {
+  const portrait = isPortrait();
+
+  if (portrait && !forcePlay) {
+    rotateNotice.style.display = "flex";
+  } else {
+    rotateNotice.style.display = "none";
     resize();
+    if (ctx) ctx.clearRect(0,0,canvas.width,canvas.height);
   }
 }
-window.addEventListener("resize",()=>setTimeout(applyOrientationLayout,100));
-window.addEventListener("orientationchange",()=>setTimeout(applyOrientationLayout,150));
+
+window.addEventListener("resize", () => setTimeout(applyOrientationLayout, 200));
+window.addEventListener("orientationchange", () => {
+  setTimeout(applyOrientationLayout, 200);
+  setTimeout(() => resize(), 350);
+});
+
 applyOrientationLayout();
 </script>
 </body>
