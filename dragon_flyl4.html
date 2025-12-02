@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>Dragon Adventure – Level 4 Final + Music & Timer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dragon Adventure – Level 4 Final + Music & Timer (Mobile Controls Added)</title>
 <style>
   html,body{margin:0;overflow:hidden;background:#87ceeb;}
   canvas{display:block;}
@@ -48,12 +48,40 @@
   }
   #winOverlay button:hover{background:#e67e22;}
   @keyframes pop{from{transform:translate(-50%,-50%) scale(1);}to{transform:translate(-50%,-50%) scale(1.05);}}
+
+  /* === Mobile control buttons === */
+  #mobileControls {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 20px;
+    z-index: 15;
+  }
+  #mobileControls button {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0,0,0,0.5);
+    color: white;
+    font-size: 40px;
+    user-select: none;
+  }
+  #mobileControls button:active {
+    background: rgba(255,255,255,0.4);
+    color: yellow;
+  }
+  @media (min-width: 900px) {
+    #mobileControls { display: none; }
+  }
 </style>
 </head>
 <body>
 <div id="instructions">
   🐉 <b>How to Play:</b><br/>
-  • Use the arrow keys to move left and right.<br/>
+  • Use the arrow keys to move left and right, or tap the on‑screen buttons below.<br/>
   • Hold the space bar (or tap and hold on a tablet / phone) to fly and breathe fire!<br/><br/>
   Each hazard is worth 100 points — <small>reach <span style="white-space:nowrap;">1500 points</span> to win!</small>
 </div>
@@ -66,6 +94,12 @@
 <audio id="bgMusic" src="Music/Chase.mp3" loop preload="auto"></audio>
 
 <canvas id="game"></canvas>
+
+<!-- === On‑screen mobile control buttons === -->
+<div id="mobileControls">
+  <button id="leftBtn">⮜</button>
+  <button id="rightBtn">⮞</button>
+</div>
 
 <script>
 /* === SETUP === */
@@ -293,6 +327,15 @@ function drawPoisonSymbol(){
   ctx.strokeStyle="#fff";ctx.lineWidth=2;
   ctx.beginPath();ctx.moveTo(-14,14);ctx.lineTo(14,-14);ctx.moveTo(-14,-14);ctx.lineTo(14,14);ctx.stroke();
 }
+
+/* === MOBILE TOUCH LEFT/RIGHT BUTTONS === */
+const leftBtn=document.getElementById("leftBtn");
+const rightBtn=document.getElementById("rightBtn");
+function pressKey(code,val){keys[code]=val;}
+leftBtn.addEventListener("touchstart",e=>{e.preventDefault();pressKey("ArrowLeft",true);});
+leftBtn.addEventListener("touchend",e=>{pressKey("ArrowLeft",false);});
+rightBtn.addEventListener("touchstart",e=>{e.preventDefault();pressKey("ArrowRight",true);});
+rightBtn.addEventListener("touchend",e=>{pressKey("ArrowRight",false);});
 
 update();
 </script>
