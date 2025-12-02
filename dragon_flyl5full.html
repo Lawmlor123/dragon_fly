@@ -58,13 +58,12 @@ const ground=new THREE.Mesh(new THREE.PlaneGeometry(200,400),
   new THREE.MeshStandardMaterial({color:0x3f2a10}));
 ground.rotation.x=-Math.PI/2;scene.add(ground);
 
-// === widened path ===
 const path=new THREE.Mesh(new THREE.PlaneGeometry(20,400),
   new THREE.MeshStandardMaterial({color:0x705028}));
 path.rotation.x=-Math.PI/2;path.position.set(0,0.01,-100);
 scene.add(path);
 
-// simple forest (trees pushed outward to edges)
+// forest
 const forest=new THREE.Group();
 for(let i=0;i<150;i++){
   const trunk=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,1,6),
@@ -78,7 +77,7 @@ for(let i=0;i<150;i++){
 }
 scene.add(forest);
 
-// === GLOBALS ===
+// globals
 const overlay=document.getElementById("overlay"),
       startOverlay=document.getElementById("startOverlay"),
       deathOverlay=document.getElementById("deathOverlay"),
@@ -97,7 +96,7 @@ let hazardSpeed=0.028,lastWave=0;
 const loader=new GLTFLoader();
 
 // Dragon
-loader.load("dragon.glb", glt => {
+loader.load("models/dragon.glb", glt => {
   dragon=glt.scene;
   dragon.traverse(o=>{
     if(o.isMesh)
@@ -111,8 +110,8 @@ loader.load("dragon.glb", glt => {
   overlay.textContent="Loading pump.glb…";
 });
 
-// === PUMPKIN WITH RECTANGLE FILTER (unchanged) ===
-loader.load("pump.glb", glt => {
+// Pumpkin
+loader.load("models/pump.glb", glt => {
   pumpModel=glt.scene;
   window.pumpModel=pumpModel;
   console.group("🎃 PUMPKIN GLB — FULL INSPECTION");
@@ -199,7 +198,7 @@ function winLevel(){
   document.getElementById("again").onclick=resetGame;
 }
 
-// === HELPER: attach health bar to a pumpkin ===
+// === ATTACH HEALTH BAR ===
 function attachHealthBar(pumpkin){
   const group=new THREE.Group();
   for(let i=0;i<3;i++){
@@ -215,7 +214,7 @@ function attachHealthBar(pumpkin){
   pumpkin.userData.hpBars=group.children;
 }
 
-// === HELPER: simple explosion effect ===
+// === EXPLOSION ===
 function spawnExplosion(pos,color=0xff8800){
   const parts=[];
   for(let i=0;i<12;i++){
@@ -264,10 +263,7 @@ function createPumpkin(){
   clone.add(candle);
   clone.userData.candle=candle;
   clone.userData.rotSpeed=new THREE.Vector3(Math.random()*0.02,Math.random()*0.03,0);
-
-  // attach hp bar
   attachHealthBar(clone);
-
   return clone;
 }
 
@@ -289,7 +285,7 @@ function shootFire(){
   const m=new THREE.Mesh(new THREE.SphereGeometry(0.3,8,8),
     new THREE.MeshStandardMaterial({color:0xff6600,emissive:0x331100,emissiveIntensity:1}));
   const spawn=dragon.position.clone().add(new THREE.Vector3(0,1.6,0));
-  const fwd=new THREE.Vector3(0,0,-1); // shoots forward down path
+  const fwd=new THREE.Vector3(0,0,-1); 
   m.position.copy(spawn);
   fireballs.push({mesh:m,vel:fwd.multiplyScalar(0.8)});
   scene.add(m);
@@ -306,7 +302,7 @@ function segmentSphereIntersect(p1,p2,c,r){
   return (t1>=0&&t1<=1)||(t2>=0&&t2<=1);
 }
 
-// === ANIMATE ===
+// === MAIN LOOP ===
 function animate(){
   requestAnimationFrame(animate);
   if(!dragon)return;
@@ -345,14 +341,12 @@ function animate(){
       hazards.forEach((h,j)=>{
         if(segmentSphereIntersect(prev,next,h.position,h.userData.radius)){
           h.userData.hp--;
-          // hide one bar per hit
           if(h.userData.hpBars){
             const idx=Math.max(h.userData.hp,0);
             if(h.userData.hpBars[idx])h.userData.hpBars[idx].visible=false;
           }
           scene.remove(f.mesh);fireballs.splice(i,1);
           if(h.userData.hp<=0){
-            // explosion on destroy
             spawnExplosion(h.position.clone(),h.userData.candle?.color?.getHex()||0xff8800);
             scene.remove(h);hazards.splice(j,1);
             score+=100;scoreBoard.textContent=`Score ${score}`;kills++;
