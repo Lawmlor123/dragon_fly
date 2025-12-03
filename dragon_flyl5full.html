@@ -36,7 +36,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;color:#fff;font-f
 <div id="overlay">Loading dragon.glb…</div>
 <div id="lives">❤️❤️❤️</div>
 <div id="scoreBoard">Score 0</div>
-<div id="startOverlay">Press any arrow key to begin!</div>
+<div id="startOverlay">Press any arrow key or tap to begin!</div>
 <div id="deathOverlay"></div>
 <div id="winOverlay"></div>
 <audio id="bgMusic" src="Music/Chase.mp3" loop preload="auto"></audio>
@@ -96,7 +96,7 @@ let hazardSpeed=0.028,lastWave=0;
 // === LOAD MODELS ===
 const loader=new GLTFLoader();
 
-// Dragon  (updated path)
+// Dragon
 loader.load("models/dragon.glb", glt => {
   dragon=glt.scene;
   dragon.traverse(o=>{
@@ -111,11 +111,10 @@ loader.load("models/dragon.glb", glt => {
   overlay.textContent="Loading pump.glb…";
 });
 
-// === PUMPKIN WITH RECTANGLE FILTER (updated path) ===
+// Pumpkin
 loader.load("models/pump.glb", glt => {
   pumpModel=glt.scene;
   window.pumpModel=pumpModel;
-  console.group("🎃 PUMPKIN GLB — FULL INSPECTION");
   pumpModel.traverse(o=>{
     if(o.isMesh){
       o.geometry.computeBoundingBox();
@@ -127,19 +126,6 @@ loader.load("models/pump.glb", glt => {
       if(badName||huge||flat){o.visible=false;o.scale.set(0,0,0);}
     }
   });
-  console.groupEnd();
-  window.hidePumpkinRectangles=function(){
-    let hidden=0;
-    pumpModel.traverse(o=>{
-      if(o.isMesh){
-        o.geometry.computeBoundingBox();
-        const s=new THREE.Vector3();o.geometry.boundingBox.getSize(s);
-        const flat=((s.x>1&&s.z>1&&s.y<0.05)||(s.y>1&&s.z>1&&s.x<0.05));
-        if(flat){o.visible=false;o.scale.set(0,0,0);hidden++;}
-      }
-    });
-    console.log("hidePumpkinRectangles(): hidden =",hidden);
-  };
   const b=new THREE.Box3().setFromObject(pumpModel);
   const center=new THREE.Vector3();b.getCenter(center);
   pumpModel.position.sub(center);
@@ -264,7 +250,6 @@ function createPumpkin(){
   clone.add(candle);
   clone.userData.candle=candle;
   clone.userData.rotSpeed=new THREE.Vector3(Math.random()*0.02,Math.random()*0.03,0);
-
   attachHealthBar(clone);
   return clone;
 }
@@ -287,7 +272,7 @@ function shootFire(){
   const m=new THREE.Mesh(new THREE.SphereGeometry(0.3,8,8),
     new THREE.MeshStandardMaterial({color:0xff6600,emissive:0x331100,emissiveIntensity:1}));
   const spawn=dragon.position.clone().add(new THREE.Vector3(0,1.6,0));
-  const fwd=new THREE.Vector3(0,0,-1); // shoots forward down path
+  const fwd=new THREE.Vector3(0,0,-1);
   m.position.copy(spawn);
   fireballs.push({mesh:m,vel:fwd.multiplyScalar(0.8)});
   scene.add(m);
@@ -330,7 +315,7 @@ function animate(){
     hazards.forEach((h,i)=>{
       h.rotation.x+=h.userData.rotSpeed.x;h.rotation.y+=h.userData.rotSpeed.y;
       h.position.z+=hazardSpeed;
-      if(h.userData.candle){h.userData.candle.intensity=1+Math.sin(Date.now()*0.012+i)*0.25;}
+      if(h.userData.candle)h.userData.candle.intensity=1+Math.sin(Date.now()*0.012+i)*0.25;
       if(h.position.z>7){scene.remove(h);hazards.splice(i,1);dragonHit();}
       else if(dragon.position.distanceTo(h.position)<1.4){scene.remove(h);hazards.splice(i,1);dragonHit();}
     });
@@ -364,6 +349,40 @@ function animate(){
   renderer.render(scene,camera);
 }
 animate();
+
+/* === MOBILE / TOUCH CONTROL ADD‑ON === */
+const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+if (isTouchDevice) {
+  console.log('Touch controls enabled');
+  // tap to start or shoot
+  window.addEventListener('touchstart', e => {
+    if (state === 'idle') {
+      startGame();
+      return;
+    }
+    if (state === 'playing') shootFire();
+  });
+  // swipe to move
+  let startX=0,startY=0;
+  const DEAD_ZONE=40;
+  window.addEventListener('touchstart', e => {
+    const t=e.touches[0];
+    startX=t.clientX; startY=t.clientY;
+  });
+  window.addEventListener('touchmove', e => {
+    if(state!=='playing')return;
+    const t=e.touches[0];
+    const dx=t.clientX-startX;
+    const dy=t.clientY-startY;
+    keys.ArrowLeft  = dx < -DEAD_ZONE;
+    keys.ArrowRight = dx >  DEAD_ZONE;
+    keys.ArrowUp    = dy < -DEAD_ZONE;
+    keys.ArrowDown  = dy >  DEAD_ZONE;
+  });
+  window.addEventListener('touchend', () => {
+    keys.ArrowLeft=keys.ArrowRight=keys.ArrowUp=keys.ArrowDown=false;
+  });
+}
 
 // === RESIZE ===
 addEventListener("resize",()=>{
