@@ -340,7 +340,6 @@ function gameLoop(){
     ctx.beginPath();
     ctx.arc(b.x,b.y,b.radius,0,Math.PI*2);
     ctx.fill();
-    // 🖤 black label
     ctx.fillStyle="#000";
     ctx.font="bold 18px Comic Sans MS";
     ctx.textAlign="center";
@@ -366,7 +365,6 @@ function flap(){
   if(gameOver)return; 
   dragon.velocity=dragon.flapStrength; 
   createFire(); 
-  // 🎵 start music on first flap / spacebar
   if(!musicStarted){
     musicStarted = true;
     bgMusic.volume=0.6;
@@ -386,7 +384,7 @@ function levelCompleteSequence(){
     <div style="font-size:48px;color:#2ecc71;">🌈 LEVEL 3 COMPLETE! 🌈</div>
     <div style="font-size:22px;">Final Score: ${score}</div>
     <button id="nextBtn" style="font-size:26px;padding:12px 24px;background:#2ecc71;border:none;border-radius:10px;color:white;margin-top:20px;cursor:pointer;">➡️ NEXT LEVEL</button>`;
-  document.getElementById("nextBtn").onclick=()=>window.location.href="dragon_flyl4.html";
+  document.getElementById("nextBtn").onclick=()=>window.location.href="dragon_flyl4new.html";
 }
 </script>
 </body>
