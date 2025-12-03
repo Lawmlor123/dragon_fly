@@ -228,9 +228,14 @@ function triggerWin(){
   gameOver=true;
   music.pause();
   overlayTitle.textContent="🏆 You Win! 🏆";
-  overlayMsg.textContent="You escaped the volcano!";
+  overlayMsg.innerHTML="You escaped the volcano!<br><br><button id='nextBtn' style='font-size:18px;padding:10px 20px;background:#f39c12;border:none;border-radius:8px;color:#fff;cursor:pointer;'>➡️ Next Level</button>";
   finalScore.textContent=score;
   winOverlay.style.display="block";
+  // link to Level 5
+  setTimeout(()=>{
+    const next=document.getElementById("nextBtn");
+    if(next) next.onclick=()=>window.location.href="dragon_flyl5full.html";
+  },0);
 }
 
 /*==================== DRAW ====================*/
