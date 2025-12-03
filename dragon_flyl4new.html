@@ -41,15 +41,11 @@
     background:#f24607;color:#fff;border:none;border-radius:7px;
   }
   .flash{animation:flash 0.2s ease-in-out;}
-  @keyframes flash{
-    0%{filter:brightness(2);}100%{filter:none;}
-  }
+  @keyframes flash{0%{filter:brightness(2);}100%{filter:none;}}
 </style>
 </head>
 <body>
-<div id="hud">
-🔥 <b>Fly Up!</b> – Drag / Mouse / Arrows to move – Tap or Space to shoot
-</div>
+<div id="hud">🔥 <b>Fly Up!</b> – Drag / Mouse / Arrows to move – Tap or Space to shoot</div>
 <div id="livesBar">❤️❤️❤️</div>
 <div id="scoreBoard">Score: <span id="scoreVal">0</span></div>
 
@@ -147,113 +143,100 @@ const finalScore=document.getElementById("finalScore");
 const restartBtn=document.getElementById("restartBtn");
 restartBtn.addEventListener("click",resetGame);
 
-function resetGame() {
-  gameOver = false;
-  winOverlay.style.display = "none";
-  overlayTitle.textContent = "🏆 Game Over 🏆";
-
-  // ✅ full reset for score/lives/hazards so replay works correctly
-  score = 0;
-  scoreVal.textContent = score;   // reset scoreboard display
-  lives = 3;
-  updateLives();
-  fireballs = [];
-  hazards = [];
-
-  // ✅ re‑seed timers to allow hazard spawning again
-  elapsed = 0;
-  lastSpawn = 0;
-
-  // ✅ reset dragon & music
-  dragon.x = W / 2;
-  dragon.y = H * 0.8;
-  music.currentTime = 0;
-  music.play();
-  document.body.classList.remove("flash");
+function resetGame(){
+  gameOver=false;
+  winOverlay.style.display="none";
+  overlayTitle.textContent="🏆 Game Over 🏆";
+  // full reset for score/lives/hazards
+  score=0; scoreVal.textContent=score;
+  lives=3; updateLives();
+  fireballs=[]; hazards=[];
+  // re‑seed timers
+  elapsed=0; lastSpawn=0; last=performance.now();
+  // reset dragon & music
+  dragon.x=W/2; dragon.y=H*0.8;
+  music.currentTime=0; music.play();
+  document.body.classList.remove('flash');
 }
 
-function updateLives() {
-  livesBar.textContent = "❤️".repeat(lives);
-}
+function updateLives(){livesBar.textContent="❤️".repeat(lives);}
 updateLives();
 
-let elapsed = 0;
-function update(dt) {
-  if (gameOver) { draw(); return; }
+let elapsed=0;
+function update(dt){
+  if(gameOver){draw();return;}
+  let moveX=0,moveY=0;
+  if(keys["ArrowLeft"]||keys["KeyA"])moveX=-1;
+  if(keys["ArrowRight"]||keys["KeyD"])moveX=1;
+  if(keys["ArrowUp"]||keys["KeyW"])moveY=-1;
+  if(keys["ArrowDown"]||keys["KeyS"])moveY=1;
+  if(moveX||moveY){touchX=dragon.x+moveX*S(30);touchY=dragon.y+moveY*S(30);}
+  dragon.x+=(touchX-dragon.x)*0.15;
+  dragon.y+=(touchY-dragon.y)*0.15;
+  dragon.x=Math.max(dragon.radius,Math.min(W-dragon.radius,dragon.x));
+  dragon.y=Math.max(dragon.radius,Math.min(H-dragon.radius,dragon.y));
 
-  let moveX = 0, moveY = 0;
-  if (keys["ArrowLeft"] || keys["KeyA"]) moveX = -1;
-  if (keys["ArrowRight"] || keys["KeyD"]) moveX = 1;
-  if (keys["ArrowUp"] || keys["KeyW"]) moveY = -1;
-  if (keys["ArrowDown"] || keys["KeyS"]) moveY = 1;
-  if (moveX || moveY) { touchX = dragon.x + moveX * S(30); touchY = dragon.y + moveY * S(30); }
-  dragon.x += (touchX - dragon.x) * 0.15;
-  dragon.y += (touchY - dragon.y) * 0.15;
-  dragon.x = Math.max(dragon.radius, Math.min(W - dragon.radius, dragon.x));
-  dragon.y = Math.max(dragon.radius, Math.min(H - dragon.radius, dragon.y));
+  elapsed+=dt;
+  if(elapsed-lastSpawn>1000){lastSpawn=elapsed;spawnHazard();}
 
-  elapsed += dt;
-  if (elapsed - lastSpawn > 1000) { lastSpawn = elapsed; spawnHazard(); }
-
-  for (let h of hazards) { h.y += S(1.0); }
-  const remaining = [];
-  for (let h of hazards) {
-    if (h.y - h.h > H && h.alive) { 
-      score += 10; 
-      scoreVal.textContent = score; 
-      if (score >= WIN_SCORE && !gameOver) { triggerWin(); } 
-    }
+  for(let h of hazards){h.y+=S(1.0);}
+  const remaining=[];
+  for(let h of hazards){
+    if(h.y-h.h>H&&h.alive){score+=10;scoreVal.textContent=score;if(score>=WIN_SCORE&&!gameOver){triggerWin();}}
     else remaining.push(h);
   }
-  hazards = remaining;
+  hazards=remaining;
 
-  for (let i = fireballs.length - 1; i >= 0; i--) {
-    const f = fireballs[i];
-    f.y += f.vy; f.life--;
-    if (f.life <= 0 || f.y < -50) { fireballs.splice(i, 1); continue; }
-    for (let h of hazards) {
-      if (!h.alive) continue;
-      if (f.x > h.x - h.w / 2 && f.x < h.x + h.w / 2 && f.y > h.y - h.h && f.y < h.y) {
-        h.alive = false; fireballs.splice(i, 1);
-        score += 100; scoreVal.textContent = score;
-        if (score >= WIN_SCORE && !gameOver) { triggerWin(); }
+  for(let i=fireballs.length-1;i>=0;i--){
+    const f=fireballs[i];
+    f.y+=f.vy;f.life--;
+    if(f.life<=0||f.y<-50){fireballs.splice(i,1);continue;}
+    for(let h of hazards){
+      if(!h.alive)continue;
+      if(f.x>h.x-h.w/2&&f.x<h.x+h.w/2&&f.y>h.y-h.h&&f.y<h.y){
+        h.alive=false;fireballs.splice(i,1);
+        score+=100;scoreVal.textContent=score;
+        if(score>=WIN_SCORE&&!gameOver){triggerWin();}
         break;
       }
     }
   }
 
-  for (let h of hazards) {
-    if (!h.alive) continue;
-    if (Math.abs(dragon.x - h.x) < S(40) + h.w / 2 && Math.abs(dragon.y - h.y) < S(40) + h.h / 2) {
-      loseHeart(); hazards.splice(hazards.indexOf(h), 1); break;
+  for(let h of hazards){
+    if(!h.alive)continue;
+    if(Math.abs(dragon.x-h.x)<S(40)+h.w/2&&Math.abs(dragon.y-h.y)<S(40)+h.h/2){
+      loseHeart();hazards.splice(hazards.indexOf(h),1);break;
     }
   }
   draw();
 }
 
-function loseHeart() {
+function loseHeart(){
   lives--;
   updateLives();
-  document.body.classList.add("flash");
-  setTimeout(() => document.body.classList.remove("flash"), 200);
-  if (lives <= 0) {
-    gameOver = true;
-    music.pause();
-    overlayTitle.textContent = "💀 Game Over 💀";
-    overlayMsg.textContent = "You lost all your hearts!";
-    finalScore.textContent = score;
-    winOverlay.style.display = "block";
+  document.body.classList.add('flash');
+  setTimeout(()=>document.body.classList.remove('flash'),200);
+  if(lives<=0){
+    gameOver=true;music.pause();
+    overlayTitle.textContent="💀 Game Over 💀";
+    overlayMsg.textContent="You lost all your hearts!";
+    finalScore.textContent=score;
+    winOverlay.style.display="block";
   }
 }
 
-function triggerWin() {
-  gameOver = true;
+function triggerWin(){
+  gameOver=true;
   music.pause();
-  overlayTitle.textContent = "🏆 You Win! 🏆";
-  overlayMsg.textContent = "You escaped the volcano!";
-  finalScore.textContent = score;
-  winOverlay.style.display = "block";
-}
+  overlayTitle.textContent="🏆 You Win! 🏆";
+  overlayMsg.innerHTML="You escaped the volcano!<br><br><button id='nextBtn' style='font-size:18px;padding:10px 20px;background:#f39c12;border:none;border-radius:8px;color:#fff;cursor:pointer;'>➡️ Next Level</button>";
+  finalScore.textContent=score;
+  winOverlay.style.display="block";
+  // link to Level 5
+  setTimeout(()=>{
+    const next=document.getElementById("nextBtn");
+    if(next) next.onclick=()=>window.location.href="dragon_flyl5full.html";
+  },0);
 }
 
 /*==================== DRAW ====================*/
@@ -267,9 +250,7 @@ function draw(){
   for(const h of hazards){if(!h.alive)continue;drawHazard(h);}
   for(const f of fireballs){
     const grd=ctx.createRadialGradient(f.x,f.y,S(2),f.x,f.y,S(12));
-    grd.addColorStop(0,"#ffff99");
-    grd.addColorStop(0.4,"#ff9900");
-    grd.addColorStop(1,"rgba(255,85,0,0)");
+    grd.addColorStop(0,"#ffff99");grd.addColorStop(0.4,"#ff9900");grd.addColorStop(1,"rgba(255,85,0,0)");
     ctx.fillStyle=grd;ctx.beginPath();ctx.arc(f.x,f.y,S(12),0,Math.PI*2);ctx.fill();
   }
   drawDragon();
