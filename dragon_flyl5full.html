@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
-<title>Dragon Fly L5 — iPhone Touch Support Edition</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Dragon Fly L5 — Pumpkin Fix Final + HP Bars + Explosions</title>
 
 <script type="importmap">
 {
@@ -15,15 +15,7 @@
 </script>
 
 <style>
-html,body{
-  margin:0;
-  height:100%;
-  overflow:hidden;
-  background:#000;
-  color:#fff;
-  font-family:sans-serif;
-  touch-action:none;
-}
+html,body{margin:0;height:100%;overflow:hidden;background:#000;color:#fff;font-family:sans-serif;}
 #overlay,#startOverlay,#deathOverlay,#winOverlay,#scoreBoard,#lives{
   position:absolute;z-index:10;background:rgba(0,0,0,0.6);
   padding:8px 14px;border-radius:8px;text-align:center;
@@ -38,36 +30,16 @@ html,body{
 #deathOverlay button,#winOverlay button{
   margin-top:10px;padding:8px 20px;border:none;border-radius:6px;background:#333;color:#fff;
 }
-
-/* === NEW MOBILE JOYSTICK === */
-#touchControl{
-  position:absolute;
-  bottom:60px;
-  left:60px;
-  width:130px;
-  height:130px;
-  border-radius:50%;
-  border:2px solid rgba(255,255,255,0.25);
-  background:rgba(255,255,255,0.05);
-  z-index:20;
-  touch-action:none;
-}
-#touchControl.active{
-  background:rgba(255,255,255,0.15);
-}
 </style>
 </head>
 <body>
 <div id="overlay">Loading dragon.glb…</div>
 <div id="lives">❤️❤️❤️</div>
 <div id="scoreBoard">Score 0</div>
-<div id="startOverlay">Press any arrow key or tap to begin!</div>
+<div id="startOverlay">Press any arrow key to begin!</div>
 <div id="deathOverlay"></div>
 <div id="winOverlay"></div>
 <audio id="bgMusic" src="Music/Chase.mp3" loop preload="auto"></audio>
-
-<!-- Mobile joystick element -->
-<div id="touchControl"></div>
 
 <script type="module">
 import * as THREE from "three";
@@ -86,12 +58,13 @@ const ground=new THREE.Mesh(new THREE.PlaneGeometry(200,400),
   new THREE.MeshStandardMaterial({color:0x3f2a10}));
 ground.rotation.x=-Math.PI/2;scene.add(ground);
 
+// === widened path ===
 const path=new THREE.Mesh(new THREE.PlaneGeometry(20,400),
   new THREE.MeshStandardMaterial({color:0x705028}));
 path.rotation.x=-Math.PI/2;path.position.set(0,0.01,-100);
 scene.add(path);
 
-// simple forest
+// simple forest (trees pushed outward to edges)
 const forest=new THREE.Group();
 for(let i=0;i<150;i++){
   const trunk=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,1,6),
@@ -112,8 +85,7 @@ const overlay=document.getElementById("overlay"),
       winOverlay=document.getElementById("winOverlay"),
       scoreBoard=document.getElementById("scoreBoard"),
       livesDisplay=document.getElementById("lives"),
-      bgMusic=document.getElementById("bgMusic"),
-      touchCtrl=document.getElementById("touchControl");
+      bgMusic=document.getElementById("bgMusic");
 
 let dragon,pumpModel;
 let state="loading",rotationProgress=0,rotateAngle=0;
@@ -123,6 +95,8 @@ let hazardSpeed=0.028,lastWave=0;
 
 // === LOAD MODELS ===
 const loader=new GLTFLoader();
+
+// Dragon
 loader.load("dragon.glb", glt => {
   dragon=glt.scene;
   dragon.traverse(o=>{
@@ -137,8 +111,11 @@ loader.load("dragon.glb", glt => {
   overlay.textContent="Loading pump.glb…";
 });
 
+// === PUMPKIN WITH RECTANGLE FILTER (unchanged) ===
 loader.load("pump.glb", glt => {
   pumpModel=glt.scene;
+  window.pumpModel=pumpModel;
+  console.group("🎃 PUMPKIN GLB — FULL INSPECTION");
   pumpModel.traverse(o=>{
     if(o.isMesh){
       o.geometry.computeBoundingBox();
@@ -150,6 +127,22 @@ loader.load("pump.glb", glt => {
       if(badName||huge||flat){o.visible=false;o.scale.set(0,0,0);}
     }
   });
+  console.groupEnd();
+  window.hidePumpkinRectangles=function(){
+    let hidden=0;
+    pumpModel.traverse(o=>{
+      if(o.isMesh){
+        o.geometry.computeBoundingBox();
+        const s=new THREE.Vector3();o.geometry.boundingBox.getSize(s);
+        const flat=((s.x>1&&s.z>1&&s.y<0.05)||(s.y>1&&s.z>1&&s.x<0.05));
+        if(flat){o.visible=false;o.scale.set(0,0,0);hidden++;}
+      }
+    });
+    console.log("hidePumpkinRectangles(): hidden =",hidden);
+  };
+  const b=new THREE.Box3().setFromObject(pumpModel);
+  const center=new THREE.Vector3();b.getCenter(center);
+  pumpModel.position.sub(center);
   overlay.textContent="Ready!";
   startOverlay.style.display="block";
   state="idle";
@@ -176,53 +169,8 @@ addEventListener("keydown",e=>{
 });
 addEventListener("keyup",e=>{if(keys.hasOwnProperty(e.code))keys[e.code]=false;});
 
-/* ========= MOBILE JOYSTICK & TILT  ========= */
-let joyActive=false,joyStart={x:0,y:0},joyDir={x:0,y:0};
-touchCtrl.addEventListener("touchstart",e=>{
-  const t=e.touches[0];
-  joyActive=true;
-  joyStart={x:t.clientX,y:t.clientY};
-  joyDir={x:0,y:0};
-  touchCtrl.classList.add("active");
-  // also start game by tapping joystick
-  if(state==="idle")startGame();
-});
-touchCtrl.addEventListener("touchmove",e=>{
-  e.preventDefault();
-  const t=e.touches[0];
-  const dx=t.clientX-joyStart.x;
-  const dy=t.clientY-joyStart.y;
-  const limit=40;
-  joyDir={
-    x:Math.max(-1,Math.min(1,dx/limit)),
-    y:Math.max(-1,Math.min(1,dy/limit))
-  };
-},{passive:false});
-touchCtrl.addEventListener("touchend",()=>{
-  joyActive=false;
-  joyDir={x:0,y:0};
-  touchCtrl.classList.remove("active");
-});
-
-/* ========= TOUCH‑TO‑SHOOT (anywhere else) ========= */
-addEventListener("touchstart",e=>{
-  if(e.target!==touchCtrl && state==="playing") shootFire();
-});
-
-/* ========= Optional Tilt control ========= */
-if(window.DeviceOrientationEvent){
-  window.addEventListener("deviceorientation",e=>{
-    window.tiltX=(e.gamma||0)/45;
-    window.tiltY=-(e.beta||0)/45;
-  });
-}
-
 // === FLOW ===
-function startGame(){
-  startOverlay.style.display="none";
-  bgMusic.play();
-  state="turning";rotationProgress=0;
-}
+function startGame(){startOverlay.style.display="none";bgMusic.play();state="turning";rotationProgress=0;}
 function resetGame(){
   hazards.forEach(h=>scene.remove(h));hazards=[];
   fireballs.forEach(f=>scene.remove(f.mesh));fireballs=[];
@@ -251,7 +199,7 @@ function winLevel(){
   document.getElementById("again").onclick=resetGame;
 }
 
-// === HELPER: attach health bar ===
+// === HELPER: attach health bar to a pumpkin ===
 function attachHealthBar(pumpkin){
   const group=new THREE.Group();
   for(let i=0;i<3;i++){
@@ -267,7 +215,7 @@ function attachHealthBar(pumpkin){
   pumpkin.userData.hpBars=group.children;
 }
 
-// === HELPER: explosion ===
+// === HELPER: simple explosion effect ===
 function spawnExplosion(pos,color=0xff8800){
   const parts=[];
   for(let i=0;i<12;i++){
@@ -288,7 +236,7 @@ function spawnExplosion(pos,color=0xff8800){
       p.mesh.scale.setScalar(1-t);
       p.mesh.material.opacity=1-t;
       p.mesh.material.transparent=true;
-      if(t>=1)scene.remove(p.mesh);
+      if(t>=1){scene.remove(p.mesh);}
     });
     if(t<1)requestAnimationFrame(animateExp);
   };
@@ -316,7 +264,10 @@ function createPumpkin(){
   clone.add(candle);
   clone.userData.candle=candle;
   clone.userData.rotSpeed=new THREE.Vector3(Math.random()*0.02,Math.random()*0.03,0);
+
+  // attach hp bar
   attachHealthBar(clone);
+
   return clone;
 }
 
@@ -338,7 +289,7 @@ function shootFire(){
   const m=new THREE.Mesh(new THREE.SphereGeometry(0.3,8,8),
     new THREE.MeshStandardMaterial({color:0xff6600,emissive:0x331100,emissiveIntensity:1}));
   const spawn=dragon.position.clone().add(new THREE.Vector3(0,1.6,0));
-  const fwd=new THREE.Vector3(0,0,-1);
+  const fwd=new THREE.Vector3(0,0,-1); // shoots forward down path
   m.position.copy(spawn);
   fireballs.push({mesh:m,vel:fwd.multiplyScalar(0.8)});
   scene.add(m);
@@ -369,36 +320,19 @@ function animate(){
     if(rotationProgress>=1){state="playing";spawnWave(true);}
   }
   if(state==="playing"){
-    // --- movement defaults
-    let moveLeft=keys.ArrowLeft, moveRight=keys.ArrowRight, moveUp=keys.ArrowUp, moveDown=keys.ArrowDown;
-
-    // --- mobile joystick overrides
-    if(joyActive){
-      moveLeft = joyDir.x < -0.2;
-      moveRight = joyDir.x > 0.2;
-      moveUp = joyDir.y < -0.2;
-      moveDown = joyDir.y > 0.2;
-    }
-
-    // --- tilt influence (small)
-    if(window.tiltX){
-      if(window.tiltX<-0.15) moveLeft=true;
-      if(window.tiltX>0.15)  moveRight=true;
-    }
-
-    if(moveLeft)rotateAngle+=0.015;
-    if(moveRight)rotateAngle-=0.015;
+    if(keys.ArrowLeft)rotateAngle+=0.015;
+    if(keys.ArrowRight)rotateAngle-=0.015;
     dragon.rotation.y=rotateAngle;
     const fwd=new THREE.Vector3(0,0,1).applyQuaternion(dragon.quaternion).normalize();
-    if(moveUp)dragon.position.addScaledVector(fwd,0.3);
-    if(moveDown)dragon.position.addScaledVector(fwd,-0.3);
+    if(keys.ArrowUp)dragon.position.addScaledVector(fwd,0.3);
+    if(keys.ArrowDown)dragon.position.addScaledVector(fwd,-0.3);
     dragon.position.x=Math.max(-10,Math.min(10,dragon.position.x));
     dragon.position.z=Math.max(-100,Math.min(8,dragon.position.z));
 
     hazards.forEach((h,i)=>{
       h.rotation.x+=h.userData.rotSpeed.x;h.rotation.y+=h.userData.rotSpeed.y;
       h.position.z+=hazardSpeed;
-      if(h.userData.candle)h.userData.candle.intensity=1+Math.sin(Date.now()*0.012+i)*0.25;
+      if(h.userData.candle){h.userData.candle.intensity=1+Math.sin(Date.now()*0.012+i)*0.25;}
       if(h.position.z>7){scene.remove(h);hazards.splice(i,1);dragonHit();}
       else if(dragon.position.distanceTo(h.position)<1.4){scene.remove(h);hazards.splice(i,1);dragonHit();}
     });
@@ -411,12 +345,14 @@ function animate(){
       hazards.forEach((h,j)=>{
         if(segmentSphereIntersect(prev,next,h.position,h.userData.radius)){
           h.userData.hp--;
+          // hide one bar per hit
           if(h.userData.hpBars){
             const idx=Math.max(h.userData.hp,0);
             if(h.userData.hpBars[idx])h.userData.hpBars[idx].visible=false;
           }
           scene.remove(f.mesh);fireballs.splice(i,1);
           if(h.userData.hp<=0){
+            // explosion on destroy
             spawnExplosion(h.position.clone(),h.userData.candle?.color?.getHex()||0xff8800);
             scene.remove(h);hazards.splice(j,1);
             score+=100;scoreBoard.textContent=`Score ${score}`;kills++;
