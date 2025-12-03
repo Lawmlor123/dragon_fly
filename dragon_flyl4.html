@@ -4,7 +4,9 @@
 <meta charset="UTF-8" />
 <meta name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>Dragon Adventure – Level 4 (Mobile Scaled)</title>
+<meta name="screen-orientation" content="portrait">
+<meta name="orientation" content="portrait">
+<title>Dragon Adventure – Level 4 (Mobile Scaled, Fixed for iPhone)</title>
 <style>
   html,body{margin:0;overflow:hidden;background:#87ceeb;}
   canvas{display:block;z-index:0;}
@@ -74,15 +76,29 @@
 </div>
 
 <script>
-/* ========= GLOBAL SCALE (Option A: everything smaller on iPhone) ========= */
+/* ========= GLOBAL SCALE ========= */
 const isMobile = Math.min(window.innerWidth, window.innerHeight) < 750;
 const SCALE = isMobile ? 0.55 : 1.0;
 const S = v => v * SCALE;
 
 /* ====================== GAME INITIALIZATION ====================== */
 const canvas=document.getElementById("game"),ctx=canvas.getContext("2d");
-function resize(){canvas.width=innerWidth;canvas.height=innerHeight;}
-resize();window.addEventListener("resize",resize);
+
+/* ----- iPhone Safe Canvas Resize Fix ----- */
+let cssHeight = window.innerHeight;
+function resize() {
+  const width = window.innerWidth;
+  cssHeight = Math.min(document.documentElement.clientHeight, window.innerHeight);
+
+  canvas.width  = width * window.devicePixelRatio;
+  canvas.height = cssHeight * window.devicePixelRatio;
+
+  // Scale drawing context for high DPI and align coordinates to CSS pixels
+  ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
+}
+resize();
+window.addEventListener("resize", resize);
+/* ---------------------------------------- */
 
 const music=document.getElementById("bgMusic");
 let musicPlaying=false;
@@ -94,7 +110,7 @@ const scoreBoard=document.getElementById("scoreBoard");
 const timerBoard=document.getElementById("timerBoard");
 const winOverlay=document.getElementById("winOverlay");
 
-const groundH=S(80), groundY=()=>canvas.height-groundH;
+const groundH=S(80), groundY=()=>cssHeight-groundH;
 
 let camX=0,score=0;
 const POINTS_PER_HAZARD=100,WIN_SCORE=1500;
@@ -182,7 +198,7 @@ function update(){
   const gL=groundY()-dragon.radius;
   if(dragon.y>gL){dragon.y=gL;dragon.vy=0;}
 
-  camX=dragon.x-canvas.width*0.3;
+  camX=dragon.x-canvas.width/window.devicePixelRatio*0.3;
   if(camX<0)camX=0;
 
   for(let i=fireballs.length-1;i>=0;i--){
@@ -280,21 +296,22 @@ function levelWin(){
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  const skyGrad=ctx.createLinearGradient(0,0,0,canvas.height);
+  const heightCSS = cssHeight;
+  const skyGrad=ctx.createLinearGradient(0,0,0,heightCSS);
   skyGrad.addColorStop(0,"#87ceeb");
   skyGrad.addColorStop(1,"#4ca3dd");
   ctx.fillStyle=skyGrad;
-  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillRect(0,0,canvas.width/window.devicePixelRatio,heightCSS);
 
   const tileW=S(200);
   ctx.fillStyle="#2e8b57";
-  for(let gx=-(camX%tileW);gx<canvas.width;gx+=tileW){
+  for(let gx=-(camX%tileW);gx<canvas.width/window.devicePixelRatio;gx+=tileW){
     ctx.fillRect(gx,groundY(),tileW,groundH);
   }
 
   for(const h of hazards){
     const drawX=h.x-camX;
-    if(drawX+h.w<0||drawX-h.w>canvas.width)continue;
+    if(drawX+h.w<0||drawX-h.w>canvas.width/window.devicePixelRatio)continue;
 
     if(h.alive)drawHazard(h,drawX);
 
