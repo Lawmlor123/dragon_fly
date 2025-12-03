@@ -96,8 +96,8 @@ let hazardSpeed=0.028,lastWave=0;
 // === LOAD MODELS ===
 const loader=new GLTFLoader();
 
-// Dragon
-loader.load("dragon.glb", glt => {
+// Dragon  (updated path)
+loader.load("models/dragon.glb", glt => {
   dragon=glt.scene;
   dragon.traverse(o=>{
     if(o.isMesh)
@@ -111,8 +111,8 @@ loader.load("dragon.glb", glt => {
   overlay.textContent="Loading pump.glb…";
 });
 
-// === PUMPKIN WITH RECTANGLE FILTER (unchanged) ===
-loader.load("pump.glb", glt => {
+// === PUMPKIN WITH RECTANGLE FILTER (updated path) ===
+loader.load("models/pump.glb", glt => {
   pumpModel=glt.scene;
   window.pumpModel=pumpModel;
   console.group("🎃 PUMPKIN GLB — FULL INSPECTION");
@@ -265,9 +265,7 @@ function createPumpkin(){
   clone.userData.candle=candle;
   clone.userData.rotSpeed=new THREE.Vector3(Math.random()*0.02,Math.random()*0.03,0);
 
-  // attach hp bar
   attachHealthBar(clone);
-
   return clone;
 }
 
@@ -345,14 +343,12 @@ function animate(){
       hazards.forEach((h,j)=>{
         if(segmentSphereIntersect(prev,next,h.position,h.userData.radius)){
           h.userData.hp--;
-          // hide one bar per hit
           if(h.userData.hpBars){
             const idx=Math.max(h.userData.hp,0);
             if(h.userData.hpBars[idx])h.userData.hpBars[idx].visible=false;
           }
           scene.remove(f.mesh);fireballs.splice(i,1);
           if(h.userData.hp<=0){
-            // explosion on destroy
             spawnExplosion(h.position.clone(),h.userData.candle?.color?.getHex()||0xff8800);
             scene.remove(h);hazards.splice(j,1);
             score+=100;scoreBoard.textContent=`Score ${score}`;kills++;
